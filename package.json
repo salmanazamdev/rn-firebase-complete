@@ -10,8 +10,6 @@
     "test": "jest"
   },
   "dependencies": {
-    "@react-native-firebase/app": "^23.1.0",
-    "@react-native-firebase/messaging": "^23.1.0",
     "react": "18.2.0",
     "react-native": "0.73.9"
   },
