@@ -1,4 +1,4 @@
-// App.tsx - Updated with proper notification channel handling
+// App.tsx - Notifications + Firebase Analytics
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import messaging, { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
 import PushNotification from 'react-native-push-notification';
+import analytics from '@react-native-firebase/analytics'; // 👈 Added
 
 interface NotificationItem {
   id: number;
@@ -23,22 +24,31 @@ const App: React.FC = () => {
   const [fcmToken, setFcmToken] = useState<string>('');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
+  // 🔥 Analytics helper
+  const logEvent = async (name: string, params: object = {}) => {
+    try {
+      await analytics().logEvent(name, params);
+      console.log(`📊 Logged event: ${name}`, params);
+    } catch (error) {
+      console.log('Analytics error:', error);
+    }
+  };
+
   // Create notification channel and configure PushNotification
   const createNotificationChannel = (): void => {
     PushNotification.createChannel(
       {
-        channelId: "default_notification_channel", // Same as in AndroidManifest.xml
+        channelId: "default_notification_channel",
         channelName: "General Notifications",
         channelDescription: "Notifications for general app updates",
         playSound: true,
         soundName: "default",
-        importance: 5, // Max importance
+        importance: 5,
         vibrate: true,
       },
       (created) => console.log(`Channel created: ${created}`)
     );
 
-    // Configure PushNotification
     PushNotification.configure({
       onRegister: function (token) {
         console.log("TOKEN:", token);
@@ -86,6 +96,9 @@ const App: React.FC = () => {
       const token = await messaging().getToken();
       console.log('FCM Token:', token);
       setFcmToken(token);
+
+      // 👇 Log to analytics
+      logEvent('fcm_token_received', { token });
     } catch (error) {
       console.log('Error getting FCM token:', error);
     }
@@ -94,7 +107,7 @@ const App: React.FC = () => {
   // Show local notification with proper channel
   const showLocalNotification = (remoteMessage: FirebaseMessagingTypes.RemoteMessage): void => {
     PushNotification.localNotification({
-      channelId: "default_notification_channel", // THIS IS KEY!
+      channelId: "default_notification_channel",
       title: remoteMessage.notification?.title || 'New Notification',
       message: remoteMessage.notification?.body || 'You have a new message',
       playSound: true,
@@ -106,6 +119,12 @@ const App: React.FC = () => {
       actions: ['View'],
       invokeApp: true,
       userInfo: remoteMessage.data || {},
+    });
+
+    // 👇 Log to analytics
+    logEvent('notification_received', {
+      title: remoteMessage.notification?.title,
+      body: remoteMessage.notification?.body,
     });
   };
 
@@ -120,28 +139,24 @@ const App: React.FC = () => {
       importance: 'max',
       priority: 'max',
     });
+
+    logEvent('test_local_notification');
   };
 
   useEffect(() => {
-    // IMPORTANT: Create channel first
     createNotificationChannel();
+    analytics().logAppOpen(); // 👈 Track app open
 
-    // Set background message handler
     messaging().setBackgroundMessageHandler(async remoteMessage => {
       console.log('🔥 Background notification:', remoteMessage);
-      
-      // Show local notification when app is in background
       showLocalNotification(remoteMessage);
     });
 
-    // Request permission when app loads
     requestPermission();
 
-    // Handle notification when app is in foreground
     const unsubscribe = messaging().onMessage(async (remoteMessage: FirebaseMessagingTypes.RemoteMessage) => {
       console.log('📱 Foreground notification received:', remoteMessage);
       
-      // Add to our internal list
       setNotifications(prev => [...prev, {
         id: Date.now(),
         title: remoteMessage.notification?.title || 'New Notification',
@@ -149,29 +164,27 @@ const App: React.FC = () => {
         time: new Date().toLocaleTimeString(),
       }]);
 
-      // Show local notification even in foreground (optional)
       showLocalNotification(remoteMessage);
 
-      // Also show alert
       Alert.alert(
         '📱 Notification Received', 
         `${remoteMessage.notification?.title}: ${remoteMessage.notification?.body}`
       );
     });
 
-    // Handle notification when app is opened from background
     messaging().onNotificationOpenedApp((remoteMessage: FirebaseMessagingTypes.RemoteMessage | null) => {
       if (remoteMessage) {
         console.log('Background notification opened:', remoteMessage);
+        logEvent('notification_opened', { from: 'background' });
       }
     });
 
-    // Handle notification when app is opened from quit state
     messaging()
       .getInitialNotification()
       .then((remoteMessage: FirebaseMessagingTypes.RemoteMessage | null) => {
         if (remoteMessage) {
           console.log('Quit state notification opened:', remoteMessage);
+          logEvent('notification_opened', { from: 'quit' });
         }
       });
 
@@ -184,18 +197,21 @@ const App: React.FC = () => {
       console.log('=== COPY THIS TOKEN ===');
       console.log(fcmToken);
       console.log('======================');
+
+      logEvent('fcm_token_copied');
     }
   };
 
   const clearNotifications = (): void => {
     setNotifications([]);
+    logEvent('notifications_cleared');
   };
 
   return (
     <SafeAreaView style={styles.container}>      
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>🔥 Firebase Notifications</Text>
-        <Text style={styles.subtitle}>Fixed Channel Issue!</Text>
+        <Text style={styles.headerTitle}>🔥 Firebase Notifications + Analytics</Text>
+        <Text style={styles.subtitle}>Channel + Tracking Integrated</Text>
       </View>
 
       <ScrollView style={styles.content}>
@@ -216,21 +232,6 @@ const App: React.FC = () => {
           <TouchableOpacity style={[styles.button, {backgroundColor: '#28a745'}]} onPress={testLocalNotification}>
             <Text style={styles.buttonText}>Test Local Notification</Text>
           </TouchableOpacity>
-        </View>
-
-        {/* Instructions */}
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>📋 Test Instructions</Text>
-          <Text style={styles.instructionText}>
-            1. First tap "Test Local Notification" above{'\n'}
-            2. If that works, copy the token{'\n'}
-            3. Go to Firebase Console → Cloud Messaging{'\n'}
-            4. Click "Send your first message"{'\n'}
-            5. Enter Title & Body{'\n'}
-            6. Click "Test on device"{'\n'}
-            7. Paste your FCM token{'\n'}
-            8. Send notification - should now work!
-          </Text>
         </View>
 
         {/* Notifications List */}
@@ -262,29 +263,11 @@ const App: React.FC = () => {
 };
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f5f5f5',
-  },
-  header: {
-    backgroundColor: '#4285F4',
-    padding: 20,
-    alignItems: 'center',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: 'white',
-    marginBottom: 5,
-  },
-  subtitle: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.9)',
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
+  container: { flex: 1, backgroundColor: '#f5f5f5' },
+  header: { backgroundColor: '#4285F4', padding: 20, alignItems: 'center' },
+  headerTitle: { fontSize: 24, fontWeight: 'bold', color: 'white', marginBottom: 5 },
+  subtitle: { fontSize: 16, color: 'rgba(255,255,255,0.9)' },
+  content: { flex: 1, padding: 16 },
   card: {
     backgroundColor: 'white',
     borderRadius: 12,
@@ -296,18 +279,8 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 12,
-  },
+  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  cardTitle: { fontSize: 18, fontWeight: '600', color: '#333', marginBottom: 12 },
   tokenText: {
     backgroundColor: '#f8f9fa',
     padding: 12,
@@ -317,34 +290,10 @@ const styles = StyleSheet.create({
     marginBottom: 12,
     fontFamily: 'monospace',
   },
-  button: {
-    backgroundColor: '#4285F4',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  buttonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  instructionText: {
-    fontSize: 14,
-    color: '#666',
-    lineHeight: 20,
-  },
-  clearText: {
-    color: '#ff4444',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  emptyText: {
-    textAlign: 'center',
-    color: '#999',
-    fontSize: 16,
-    padding: 20,
-  },
+  button: { backgroundColor: '#4285F4', padding: 12, borderRadius: 8, alignItems: 'center', marginBottom: 8 },
+  buttonText: { color: 'white', fontSize: 16, fontWeight: '500' },
+  clearText: { color: '#ff4444', fontSize: 14, fontWeight: '500' },
+  emptyText: { textAlign: 'center', color: '#999', fontSize: 16, padding: 20 },
   notificationItem: {
     borderLeftWidth: 4,
     borderLeftColor: '#4285F4',
@@ -353,21 +302,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     marginBottom: 8,
   },
-  notifTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#333',
-    marginBottom: 4,
-  },
-  notifBody: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
-  },
-  notifTime: {
-    fontSize: 12,
-    color: '#999',
-  },
+  notifTitle: { fontSize: 16, fontWeight: '600', color: '#333', marginBottom: 4 },
+  notifBody: { fontSize: 14, color: '#666', marginBottom: 4 },
+  notifTime: { fontSize: 12, color: '#999' },
 });
 
 export default App;
