@@ -1,4 +1,4 @@
-// App.tsx
+// App.tsx - Updated with proper notification channel handling
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -10,6 +10,7 @@ import {
   Alert,
 } from 'react-native';
 import messaging, { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
+import PushNotification from 'react-native-push-notification';
 
 interface NotificationItem {
   id: number;
@@ -21,6 +22,45 @@ interface NotificationItem {
 const App: React.FC = () => {
   const [fcmToken, setFcmToken] = useState<string>('');
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  // Create notification channel and configure PushNotification
+  const createNotificationChannel = (): void => {
+    PushNotification.createChannel(
+      {
+        channelId: "default_notification_channel", // Same as in AndroidManifest.xml
+        channelName: "General Notifications",
+        channelDescription: "Notifications for general app updates",
+        playSound: true,
+        soundName: "default",
+        importance: 5, // Max importance
+        vibrate: true,
+      },
+      (created) => console.log(`Channel created: ${created}`)
+    );
+
+    // Configure PushNotification
+    PushNotification.configure({
+      onRegister: function (token) {
+        console.log("TOKEN:", token);
+      },
+      onNotification: function (notification) {
+        console.log("LOCAL NOTIFICATION ==>", notification);
+      },
+      onAction: function (notification) {
+        console.log("ACTION:", notification.action);
+      },
+      onRegistrationError: function(err) {
+        console.error(err.message, err);
+      },
+      permissions: {
+        alert: true,
+        badge: true,
+        sound: true,
+      },
+      popInitialNotification: true,
+      requestPermissions: true,
+    });
+  };
 
   // Request permission for notifications
   const requestPermission = async (): Promise<void> => {
@@ -46,18 +86,52 @@ const App: React.FC = () => {
       const token = await messaging().getToken();
       console.log('FCM Token:', token);
       setFcmToken(token);
-      
-      // Save this token to your backend/database if needed
-      // sendTokenToServer(token);
     } catch (error) {
       console.log('Error getting FCM token:', error);
     }
   };
 
+  // Show local notification with proper channel
+  const showLocalNotification = (remoteMessage: FirebaseMessagingTypes.RemoteMessage): void => {
+    PushNotification.localNotification({
+      channelId: "default_notification_channel", // THIS IS KEY!
+      title: remoteMessage.notification?.title || 'New Notification',
+      message: remoteMessage.notification?.body || 'You have a new message',
+      playSound: true,
+      soundName: 'default',
+      importance: 'max',
+      priority: 'max',
+      vibrate: true,
+      vibration: 300,
+      actions: ['View'],
+      invokeApp: true,
+      userInfo: remoteMessage.data || {},
+    });
+  };
+
+  // Test local notification
+  const testLocalNotification = (): void => {
+    PushNotification.localNotification({
+      channelId: "default_notification_channel",
+      title: "🧪 Test Notification",
+      message: "If you see this, notifications are working!",
+      playSound: true,
+      soundName: 'default',
+      importance: 'max',
+      priority: 'max',
+    });
+  };
+
   useEffect(() => {
+    // IMPORTANT: Create channel first
+    createNotificationChannel();
+
     // Set background message handler
     messaging().setBackgroundMessageHandler(async remoteMessage => {
-      console.log('Background notification:', remoteMessage);
+      console.log('🔥 Background notification:', remoteMessage);
+      
+      // Show local notification when app is in background
+      showLocalNotification(remoteMessage);
     });
 
     // Request permission when app loads
@@ -65,7 +139,7 @@ const App: React.FC = () => {
 
     // Handle notification when app is in foreground
     const unsubscribe = messaging().onMessage(async (remoteMessage: FirebaseMessagingTypes.RemoteMessage) => {
-      console.log('Foreground notification received:', remoteMessage);
+      console.log('📱 Foreground notification received:', remoteMessage);
       
       // Add to our internal list
       setNotifications(prev => [...prev, {
@@ -75,10 +149,13 @@ const App: React.FC = () => {
         time: new Date().toLocaleTimeString(),
       }]);
 
-      // Show alert when app is open
+      // Show local notification even in foreground (optional)
+      showLocalNotification(remoteMessage);
+
+      // Also show alert
       Alert.alert(
         '📱 Notification Received', 
-        `${remoteMessage.notification?.title}: ${remoteMessage.notification?.body}\n\nMinimize the app to see system notifications!`
+        `${remoteMessage.notification?.title}: ${remoteMessage.notification?.body}`
       );
     });
 
@@ -118,7 +195,7 @@ const App: React.FC = () => {
     <SafeAreaView style={styles.container}>      
       <View style={styles.header}>
         <Text style={styles.headerTitle}>🔥 Firebase Notifications</Text>
-        <Text style={styles.subtitle}>System Notifications Enabled</Text>
+        <Text style={styles.subtitle}>Fixed Channel Issue!</Text>
       </View>
 
       <ScrollView style={styles.content}>
@@ -133,17 +210,26 @@ const App: React.FC = () => {
           </TouchableOpacity>
         </View>
 
+        {/* Test Section */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>🧪 Test Notifications</Text>
+          <TouchableOpacity style={[styles.button, {backgroundColor: '#28a745'}]} onPress={testLocalNotification}>
+            <Text style={styles.buttonText}>Test Local Notification</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Instructions */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>📋 Test Instructions</Text>
           <Text style={styles.instructionText}>
-            1. Copy the token above{'\n'}
-            2. Go to Firebase Console → Cloud Messaging{'\n'}
-            3. Click "Send your first message"{'\n'}
-            4. Enter Title & Body{'\n'}
-            5. Click "Test on device"{'\n'}
-            6. Paste your FCM token{'\n'}
-            7. Send notification - it will show in notification bar!
+            1. First tap "Test Local Notification" above{'\n'}
+            2. If that works, copy the token{'\n'}
+            3. Go to Firebase Console → Cloud Messaging{'\n'}
+            4. Click "Send your first message"{'\n'}
+            5. Enter Title & Body{'\n'}
+            6. Click "Test on device"{'\n'}
+            7. Paste your FCM token{'\n'}
+            8. Send notification - should now work!
           </Text>
         </View>
 
@@ -236,6 +322,7 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     alignItems: 'center',
+    marginBottom: 8,
   },
   buttonText: {
     color: 'white',
