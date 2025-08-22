@@ -4,10 +4,10 @@ import {
   View,
   Text,
   StyleSheet,
-  Alert,
   TouchableOpacity,
   ScrollView,
   SafeAreaView,
+  Alert,
 } from 'react-native';
 import messaging, { FirebaseMessagingTypes } from '@react-native-firebase/messaging';
 
@@ -62,19 +62,21 @@ const App: React.FC = () => {
     const unsubscribe = messaging().onMessage(async (remoteMessage: FirebaseMessagingTypes.RemoteMessage) => {
       console.log('Foreground notification:', remoteMessage);
       
+      const title = remoteMessage.notification?.title || 'New Notification';
+      const body = remoteMessage.notification?.body || 'You have a new message';
+      
       // Add notification to list
       setNotifications(prev => [...prev, {
         id: Date.now(),
-        title: remoteMessage.notification?.title || 'New Notification',
-        body: remoteMessage.notification?.body || 'You have a new message',
+        title,
+        body,
         time: new Date().toLocaleTimeString(),
       }]);
 
-      // Show alert
-      Alert.alert(
-        remoteMessage.notification?.title || 'New Notification',
-        remoteMessage.notification?.body || 'You have a new message'
-      );
+      // Show in-app banner for 3 seconds
+      setBannerMessage({ title, body });
+      setShowBanner(true);
+      setTimeout(() => setShowBanner(false), 3000);
     });
 
     // Handle notification when app is opened from background
@@ -113,10 +115,10 @@ const App: React.FC = () => {
   };
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={styles.container}>      
       <View style={styles.header}>
         <Text style={styles.headerTitle}>🔥 Firebase Notifications</Text>
-        <Text style={styles.subtitle}>Simple & Clean Setup</Text>
+        <Text style={styles.subtitle}>System Notifications Enabled</Text>
       </View>
 
       <ScrollView style={styles.content}>
@@ -138,8 +140,10 @@ const App: React.FC = () => {
             1. Copy the token above{'\n'}
             2. Go to Firebase Console → Cloud Messaging{'\n'}
             3. Click "Send your first message"{'\n'}
-            4. Paste your token in "FCM registration token"{'\n'}
-            5. Send test notification!
+            4. Enter Title & Body{'\n'}
+            5. Click "Test on device"{'\n'}
+            6. Paste your FCM token{'\n'}
+            7. Send notification - it will show in notification bar!
           </Text>
         </View>
 
