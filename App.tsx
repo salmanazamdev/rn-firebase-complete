@@ -47,7 +47,7 @@ const App: React.FC = () => {
       console.log('FCM Token:', token);
       setFcmToken(token);
       
-      // Save this token to your backend/database
+      // Save this token to your backend/database if needed
       // sendTokenToServer(token);
     } catch (error) {
       console.log('Error getting FCM token:', error);
@@ -55,35 +55,37 @@ const App: React.FC = () => {
   };
 
   useEffect(() => {
+    // Set background message handler
+    messaging().setBackgroundMessageHandler(async remoteMessage => {
+      console.log('Background notification:', remoteMessage);
+    });
+
     // Request permission when app loads
     requestPermission();
 
     // Handle notification when app is in foreground
     const unsubscribe = messaging().onMessage(async (remoteMessage: FirebaseMessagingTypes.RemoteMessage) => {
-      console.log('Foreground notification:', remoteMessage);
+      console.log('Foreground notification received:', remoteMessage);
       
-      const title = remoteMessage.notification?.title || 'New Notification';
-      const body = remoteMessage.notification?.body || 'You have a new message';
-      
-      // Add notification to list
+      // Add to our internal list
       setNotifications(prev => [...prev, {
         id: Date.now(),
-        title,
-        body,
+        title: remoteMessage.notification?.title || 'New Notification',
+        body: remoteMessage.notification?.body || 'You have a new message',
         time: new Date().toLocaleTimeString(),
       }]);
 
-      // Show in-app banner for 3 seconds
-      setBannerMessage({ title, body });
-      setShowBanner(true);
-      setTimeout(() => setShowBanner(false), 3000);
+      // Show alert when app is open
+      Alert.alert(
+        '📱 Notification Received', 
+        `${remoteMessage.notification?.title}: ${remoteMessage.notification?.body}\n\nMinimize the app to see system notifications!`
+      );
     });
 
     // Handle notification when app is opened from background
     messaging().onNotificationOpenedApp((remoteMessage: FirebaseMessagingTypes.RemoteMessage | null) => {
       if (remoteMessage) {
         console.log('Background notification opened:', remoteMessage);
-        Alert.alert('Opened from notification!', JSON.stringify(remoteMessage.notification));
       }
     });
 
@@ -92,8 +94,7 @@ const App: React.FC = () => {
       .getInitialNotification()
       .then((remoteMessage: FirebaseMessagingTypes.RemoteMessage | null) => {
         if (remoteMessage) {
-          console.log('Quit state notification:', remoteMessage);
-          Alert.alert('Opened from quit state!', JSON.stringify(remoteMessage.notification));
+          console.log('Quit state notification opened:', remoteMessage);
         }
       });
 
@@ -102,7 +103,6 @@ const App: React.FC = () => {
 
   const copyToken = (): void => {
     if (fcmToken) {
-      // In a real app, you'd use Clipboard API
       Alert.alert('Token Ready', 'FCM Token logged to console. Check your terminal!');
       console.log('=== COPY THIS TOKEN ===');
       console.log(fcmToken);
