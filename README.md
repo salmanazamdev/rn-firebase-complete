@@ -44,8 +44,8 @@ A comprehensive React Native application demonstrating **Firebase Push Notificat
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/salmanazamdev/rn_firebase_complete
-cd rn_firebase_complete
+git clone https://github.com/salmanazamdev/rn-firebase-complete
+cd rn-firebase-complete
 ```
 
 2. **Install dependencies**
@@ -246,7 +246,7 @@ adb shell pm clear YOUR_PACKAGE_NAME
 
 If you have any questions or need help:
 
-1. Check the [Issues](https://github.com/salmanazamdev/rn_firebase_complete/issues) page
+1. Check the [Issues](https://github.com/salmanazamdev/rn-firebase-complete/issues) page
 2. Create a new issue with detailed information
 3. [LinkedIn](https://www.linkedin.com/in/salmanazamdev?)
 
