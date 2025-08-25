@@ -1,4 +1,4 @@
-// App.tsx - Notifications + Firebase Analytics
+
 import React, { useEffect, useState } from 'react';
 import {
   View,
