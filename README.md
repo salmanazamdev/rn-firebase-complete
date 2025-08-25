@@ -27,9 +27,9 @@ A comprehensive React Native application demonstrating **Firebase Push Notificat
 - ✅ **Comprehensive Guides** - In-app testing instructions
 - ✅ **Responsive Layout** - Works on all Android screen sizes
 
-## 📸 Screenshots
+<!-- ## 📸 Screenshots
 
-[Add your app screenshots here]
+[Add your app screenshots here] -->
 
 ## 🚀 Quick Start
 
